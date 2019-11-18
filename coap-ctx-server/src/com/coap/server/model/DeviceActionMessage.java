@@ -1,7 +1,7 @@
 /**
  * 
  */
-package br.ufc.great.coap_ctx_server.model;
+package com.coap.server.model;
 
 import java.util.List;
 

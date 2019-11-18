@@ -1,11 +1,7 @@
 package com.coap.server.client;
 
-import java.util.Collection;
-
 import org.eclipse.californium.core.CoapHandler;
 import org.eclipse.californium.core.CoapResponse;
-
-import com.google.gson.Gson;
 
 public class ClientCoapHandler implements CoapHandler {
 	

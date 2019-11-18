@@ -266,7 +266,7 @@ public class Server extends CoapServer {
 	    	
 	    	for(String uri: uris) {
 	    		
-	    		// no 0 há o tipo e nos outros há a informação
+	    		// no 0 hï¿½ o tipo e nos outros hï¿½ a informaï¿½ï¿½o
 	    		// ... sempre que passar por um filtro, manter o mesmo conjunto...
 	    		ArrayList <String> params = handleURI(uri);
 	    		String tipo = params.get(0);
@@ -325,7 +325,8 @@ public class Server extends CoapServer {
 	    /**
 	     * Just for testing fields
 	     * */
-	    private Collection<Resource> test(){
+	    @SuppressWarnings("unused")
+		private Collection<Resource> test(){
 	    	Collection<Resource> children = getChildren();
 	    	Collection<Resource> res = new ArrayList<Resource>();
 	    	

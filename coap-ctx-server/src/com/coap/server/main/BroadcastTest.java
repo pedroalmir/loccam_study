@@ -1,7 +1,7 @@
 /**
  * 
  */
-package br.ufc.great.coap_ctx_server.main;
+package com.coap.server.main;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -10,10 +10,9 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.coap.server.model.DeviceAction;
+import com.coap.server.model.DeviceActionMessage;
 import com.google.gson.Gson;
-
-import br.ufc.great.coap_ctx_server.model.DeviceAction;
-import br.ufc.great.coap_ctx_server.model.DeviceActionMessage;
 
 /**
  * @author PedroAlmir
