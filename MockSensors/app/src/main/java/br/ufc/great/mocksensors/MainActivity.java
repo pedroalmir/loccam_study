@@ -3,9 +3,7 @@ package br.ufc.great.mocksensors;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Camera;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
@@ -14,6 +12,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
@@ -21,10 +20,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.awareness.Awareness;
@@ -34,24 +31,21 @@ import com.google.android.gms.awareness.snapshot.DetectedActivityResponse;
 import com.google.android.gms.awareness.snapshot.LocationResponse;
 import com.google.android.gms.awareness.snapshot.TimeIntervalsResponse;
 import com.google.android.gms.awareness.snapshot.WeatherResponse;
-import com.google.android.gms.awareness.state.TimeIntervals;
 import com.google.android.gms.awareness.state.Weather;
 import com.google.android.gms.location.DetectedActivity;
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.gson.Gson;
 
 import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.coap.MediaTypeRegistry;
+import org.eclipse.californium.core.network.config.NetworkConfig;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.net.Socket;
 import java.net.SocketException;
-import java.security.Policy;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -61,7 +55,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import br.ufc.great.mocksensors.loccam.ContextKeys;
 import br.ufc.great.mocksensors.loccam.ContextListener;
-import br.ufc.great.mocksensors.loccam.ContextManager;
 import br.ufc.great.mocksensors.model.Device;
 import br.ufc.great.mocksensors.model.DeviceAction;
 import br.ufc.great.mocksensors.model.DeviceActionMessage;
@@ -71,10 +64,9 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
     private Gson gson;
     private ArrayList<Device> devices;
     private LinkedHashMap<String, String> context;
-    private static final String COAP_SERVER_URL = "coap://18.229.202.214:5683/devices";
     private static final String CTOKEN = "CMU-2019";
+    private static final String COAP_SERVER_URL = "coap://18.229.202.214:5683/devices";
 
-    private UDP_Listener udpListener;
     private static boolean runUDL_Listener = true;
 
     private String[] myPermissions = {
@@ -92,22 +84,21 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        System.out.println("############### Aqui ###############");
         //ContextManager.getInstance().connect(this,"MockSensorsApp_LoCCAM");
         //ContextManager.getInstance().registerListener(this);
 
         gson = new Gson();
 
-        if(udpListener != null) udpListener.cancel(true);
-        udpListener = new UDP_Listener();
-        udpListener.execute();
+        new UpdateContextTask().execute(30000l); // Task to update context for each 30 seconds
+        new UDP_Listener().execute();                     // Task to listen broadcast messages
+
+        context = new LinkedHashMap<String, String>();
 
         if(ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 requestPermissions(myPermissions,123);
             }
         }else {
-            context = new LinkedHashMap<String, String>();
             startSnapshots();
         }
 
@@ -123,28 +114,34 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
             @Override
             public void onClick(View view) {
                 if(view.getId() == R.id.btnSendReq){
-                    String envText = ((EditText) findViewById(R.id.editText)).getText().toString().trim();
-                    if(envText.length() > 0) context.put("env", envText);
-
-                    WifiManager manager = (WifiManager) MainActivity.this.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                    WifiInfo info = manager.getConnectionInfo();
-                    String sSID = info.getSSID();
-                    if(sSID.length() > 0) context.put("network", sSID);
-
-                    CoapClient client = new CoapClient(COAP_SERVER_URL);
-                    for(Device device : devices){
-                        device.setContext(context);
-                        client.post(gson.toJson(device), MediaTypeRegistry.APPLICATION_JSON);
-                    }
-                    Toast.makeText(MainActivity.this, "CoAP Request Sent!", Toast.LENGTH_LONG).show();
+                    checkAndSendCoapRequest();
                 }
             }
         });
     }
 
+    public void checkAndSendCoapRequest(){
+        String envText = ((EditText) findViewById(R.id.editText)).getText().toString().trim();
+        if(envText.length() > 0) context.put("env", envText);
+
+        WifiManager manager = (WifiManager) MainActivity.this.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo info = manager.getConnectionInfo();
+        String sSID = info.getSSID();
+        if(sSID.length() > 0) context.put("network", sSID);
+
+        NetworkConfig.createStandardWithoutFile();
+        CoapClient client = new CoapClient(COAP_SERVER_URL);
+        for(Device device : devices){
+            device.setContext(context);
+            client.post(gson.toJson(device), MediaTypeRegistry.APPLICATION_JSON);
+        }
+        Toast.makeText(MainActivity.this, "CoAP Request Sent!", Toast.LENGTH_LONG).show();
+    }
+
     @SuppressLint("MissingPermission")
-    private void startSnapshots(){
-        SnapshotClient snapshot = Awareness.getSnapshotClient(this);
+    public void startSnapshots(){
+        SnapshotClient snapshot = Awareness.getSnapshotClient(MainActivity.this);
+        System.out.println("Starting snapshots...");
         snapshot.getWeather().addOnSuccessListener(new OnSuccessListener<WeatherResponse>() {
             @Override
             public void onSuccess(WeatherResponse weatherResponse) {
@@ -170,11 +167,11 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                 switch (detectedActivityResponse.getActivityRecognitionResult().getMostProbableActivity().getType()){
                     case DetectedActivity.IN_VEHICLE: detectedActivity = "inVehicle"; break;
                     case DetectedActivity.ON_BICYCLE: detectedActivity = "onBicycle"; break;
-                    case DetectedActivity.ON_FOOT:    detectedActivity = "onFoot"; break;
-                    case DetectedActivity.STILL:      detectedActivity = "still"; break;
-                    case DetectedActivity.TILTING:    detectedActivity = "tilting"; break;
-                    case DetectedActivity.WALKING:    detectedActivity = "walking"; break;
-                    case DetectedActivity.RUNNING:    detectedActivity = "running"; break;
+                    case DetectedActivity.ON_FOOT:    detectedActivity = "onFoot";    break;
+                    case DetectedActivity.STILL:      detectedActivity = "still";     break;
+                    case DetectedActivity.TILTING:    detectedActivity = "tilting";   break;
+                    case DetectedActivity.WALKING:    detectedActivity = "walking";   break;
+                    case DetectedActivity.RUNNING:    detectedActivity = "running";   break;
                     default: detectedActivity = "unknown";
                 }
 
@@ -195,20 +192,20 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                     default: interval = "unknown";
                 }
                 switch (intervals[1]){
-                    case TimeFence.TIME_INTERVAL_MORNING:   interval += "morning"; break;
+                    case TimeFence.TIME_INTERVAL_MORNING:   interval += "morning";   break;
                     case TimeFence.TIME_INTERVAL_AFTERNOON: interval += "afternoon"; break;
-                    case TimeFence.TIME_INTERVAL_EVENING:   interval += "evening"; break;
-                    case TimeFence.TIME_INTERVAL_NIGHT:     interval += "night"; break;
+                    case TimeFence.TIME_INTERVAL_EVENING:   interval += "evening";   break;
+                    case TimeFence.TIME_INTERVAL_NIGHT:     interval += "night";     break;
                     default: interval = "unknown";
                 }
 
                 context.put("timeInterval", interval);
-                Toast.makeText(MainActivity.this, "Context ok!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Context updated!", Toast.LENGTH_LONG).show();
             }
         });
     }
 
-    private ArrayList<Device> createDevices(List<Sensor> sensors){
+    public ArrayList<Device> createDevices(List<Sensor> sensors){
         ArrayList<String> uuids = new ArrayList<>();
         ArrayList<Device> devices = new ArrayList<>();
 
@@ -217,10 +214,10 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                     && !(sensor.getStringType().toLowerCase().contains("não calibrado") || sensor.getStringType().toLowerCase().contains("uncalibrated"))
                     && sensorTypeToString(sensor.getType()) != "Unknown"){
 
-                String uid = String.valueOf(System.currentTimeMillis());
+                String ip = getLocalIpAddress();
                 String rType = sensorTypeToString(sensor.getType());
                 String type = (rType.equals("Light") || rType.equals("AmbientTemperature")) ? "actuator" : "sensor";
-                String ip = getLocalIpAddress();
+                String uid = ip.replaceAll("\\.", "") + "_" + rType.toLowerCase().replaceAll(" ", "").trim();
 
                 if(!uuids.contains(uid)){
                     devices.add(new Device(uid, type, rType, MediaTypeRegistry.APPLICATION_JSON, ip));
@@ -302,6 +299,23 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
     @Override
     public String getContextKey() {
         return ContextKeys.PROXIMITY;
+    }
+
+    private final class UpdateContextTask extends AsyncTask<Long, String, String>{
+        @Override
+        protected String doInBackground(Long... waitParams) {
+            Looper.prepare();
+            while(true){
+                try {
+                    Thread.sleep(waitParams[0]);
+                    MainActivity.this.startSnapshots();
+                    System.out.println("Context: " + MainActivity.this.context);
+                    MainActivity.this.checkAndSendCoapRequest();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     private final class UDP_Listener extends AsyncTask<Void, DeviceActionMessage, String>{
