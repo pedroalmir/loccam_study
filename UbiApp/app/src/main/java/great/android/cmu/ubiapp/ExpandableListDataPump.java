@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import great.android.cmu.ubiapp.model.Device;
+
 public class ExpandableListDataPump {
 
     static List<Device> coapDevicesList = new ArrayList<>();

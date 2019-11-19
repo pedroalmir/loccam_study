@@ -5,14 +5,34 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Enumeration;
-
-import org.eclipse.californium.core.coap.MediaTypeRegistry;
+import java.util.Random;
 
 import com.coap.server.model.Device;
-import com.coap.server.types.ResourceTypes;
-import com.coap.server.types.Types;
 
 public abstract class Utils {
+	
+	/**
+	 * Calculate distance between two points in latitude and longitude taking
+	 * into account height difference. If you are not interested in height
+	 * difference pass 0.0. Uses Haversine method as its base.
+	 * 
+	 * lat1, long1 Start point lat2, long2 End point
+	 * @returns Distance in Meters
+	 */
+	public static double distance(double lat1, double lat2, double long1, double long2) {
+
+	    final int R = 6371; // Radius of the earth
+
+	    double latDistance = Math.toRadians(lat2 - lat1);
+	    double lonDistance = Math.toRadians(long2 - long1);
+	    double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+	            + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+	            * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+	    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+	    return R * c * 1000; // convert to meters
+	}
+	
 	public static String getMyIP(){
 		String ip = null;
 	    try {
@@ -42,72 +62,59 @@ public abstract class Utils {
 	public static ArrayList<Device> createPresetDevices() {
 		ArrayList<Device> devices = new ArrayList<Device>();
 		
-		Device airClass = new Device(
-				"dev0" + "_" + Types.ACTUATOR.getValor(), 
-				Types.ACTUATOR.getValor(), 
-				ResourceTypes.TEMPERATURE.getValor(), 
-				MediaTypeRegistry.APPLICATION_JSON, 
-				getMyIP(), 
-				"classroom"
-			);
-		airClass.addContext("temperature", "20");
-		devices.add(airClass);
+		String ip = getMyIP();
 		
-		Device tempSensorClass = new Device(
-				"dev1" + "_" + Types.SENSOR.getValor(), 
-				Types.SENSOR.getValor(), 
-				ResourceTypes.TEMPERATURE.getValor(), 
-				MediaTypeRegistry.APPLICATION_JSON, 
-				getMyIP(),
-				"classroom"
-			);
-		tempSensorClass.addContext("temperature", "18");
-		devices.add(tempSensorClass);
+		Device device1 = new Device(ip, "actuator", "airconditioning", "labaula01");
+		Device device2 = new Device(ip, "sensor", "temperature", "labaula01");
+		Device device3 = new Device(ip, "actuator", "light", "labaula01");
+		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
+		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device1.addContext("lat", "-3.746452"); device1.addContext("long", "-38.578157");
+		device2.addContext("lat", "-3.746452"); device1.addContext("long", "-38.578157");
+		device3.addContext("lat", "-3.746452"); device1.addContext("long", "-38.578157");
+		devices.add(device1); devices.add(device2); devices.add(device3);
 		
-		Device airHall= new Device(
-				"dev2" + "_" + Types.ACTUATOR.getValor(), 
-				Types.ACTUATOR.getValor(), 
-				ResourceTypes.TEMPERATURE.getValor(), 
-				MediaTypeRegistry.APPLICATION_JSON, 
-				getMyIP(),
-				"hall"
-			);
-		airHall.addContext("temperature", "22");
-		devices.add(airHall);
+		device1 = new Device(ip, "actuator", "airconditioning", "labaula02");
+		device2 = new Device(ip, "sensor", "temperature", "labaula02");
+		device3 = new Device(ip, "actuator", "light", "labaula02");
+		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
+		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device1.addContext("lat", "-3.746481"); device1.addContext("long", "-38.578219");
+		device2.addContext("lat", "-3.746481"); device1.addContext("long", "-38.578219");
+		device3.addContext("lat", "-3.746481"); device1.addContext("long", "-38.578219");
+		devices.add(device1); devices.add(device2); devices.add(device3);
 		
-		Device tempSensorHall = new Device(
-				"dev3" + "_" + Types.SENSOR.getValor(), 
-				Types.SENSOR.getValor(), 
-				ResourceTypes.TEMPERATURE.getValor(), 
-				MediaTypeRegistry.APPLICATION_JSON, 
-				getMyIP(),
-				"hall"
-			);
-		tempSensorHall.addContext("temperature", "23");
-		devices.add(tempSensorHall);
+		device1 = new Device(ip, "actuator", "airconditioning", "lab10");
+		device2 = new Device(ip, "sensor", "temperature", "lab10");
+		device3 = new Device(ip, "actuator", "light", "lab10");
+		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
+		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		devices.add(device1); devices.add(device2); devices.add(device3);
 		
+		device1 = new Device(ip, "actuator", "airconditioning", "hall");
+		device2 = new Device(ip, "sensor", "temperature", "hall");
+		device3 = new Device(ip, "actuator", "light", "hall");
+		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
+		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device1.addContext("lat", "-3.746466"); device1.addContext("long", "-38.578082");
+		device2.addContext("lat", "-3.746466"); device1.addContext("long", "-38.578082");
+		device3.addContext("lat", "-3.746466"); device1.addContext("long", "-38.578082");
+		devices.add(device1); devices.add(device2); devices.add(device3);
 		
-		Device lightClassroom= new Device(
-				"dev4" + "_" + Types.ACTUATOR.getValor(), 
-				Types.ACTUATOR.getValor(), 
-				ResourceTypes.LIGHTNESS.getValor(), 
-				MediaTypeRegistry.APPLICATION_JSON, 
-				getMyIP(),
-				"classroom"
-			);
-		lightClassroom.addContext("state", "off");
-		devices.add(lightClassroom);
-		
-		Device lightSensorClassroom = new Device(
-				"dev5" + "_" + Types.SENSOR.getValor(), 
-				Types.SENSOR.getValor(), 
-				ResourceTypes.LIGHTNESS.getValor(), 
-				MediaTypeRegistry.APPLICATION_JSON, 
-				getMyIP(),
-				"classroom"
-			);
-		lightSensorClassroom.addContext("lightness", "0");
-		devices.add(lightSensorClassroom);
+		device1 = new Device(ip, "actuator", "airconditioning", "conferenceRoom");
+		device2 = new Device(ip, "sensor", "temperature", "conferenceRoom");
+		device3 = new Device(ip, "actuator", "light", "conferenceRoom");
+		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
+		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
+		device1.addContext("lat", "-3.746579"); device1.addContext("long", "-38.578077");
+		device2.addContext("lat", "-3.746579"); device1.addContext("long", "-38.578077");
+		device3.addContext("lat", "-3.746579"); device1.addContext("long", "-38.578077");
+		devices.add(device1); devices.add(device2); devices.add(device3);
 		
 		System.out.println("\n========= ON CREATE DEVICES: \n\t"+ devices.toString() +"\n===========");
 		

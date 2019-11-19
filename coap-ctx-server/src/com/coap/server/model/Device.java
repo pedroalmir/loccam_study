@@ -5,6 +5,8 @@ package com.coap.server.model;
 
 import java.util.LinkedHashMap;
 
+import org.eclipse.californium.core.coap.MediaTypeRegistry;
+
 /**
  * @author PedroAlmir
  */
@@ -28,10 +30,8 @@ public class Device {
 	/** Device context. E.g.: <"temperature", "29ºC"> */
 	private LinkedHashMap<String, String> context;
 	
-	// Location: the name of the room
-	private String location;
-	
-	
+	/** Default constructor */
+	public Device() { }
 
 	/**
 	 * The Device constructor
@@ -42,26 +42,56 @@ public class Device {
 	 * @param ip
 	 * @param location 
 	 */
-	public Device(String uid, String type, String resourceType, int contextType, String ip, String location) {
+	public Device(String uid, String type, String resourceType, int contextType, String ip, String environment) {
 		this.uid = uid;
 		this.type = type;
 		this.resourceType = resourceType;
 		this.contextType = contextType;
 		this.ip = ip;
-		this.location = location;
 		
 		this.context = new LinkedHashMap<>();
 		
-		addContext("lc", this.location);
+		addContext("env", environment);
 		addContext("ip", this.ip);
 	}
-
-	public String getLocation() {
-		return location;
+	
+	/**
+	 * @param ip
+	 * @param type
+	 * @param resourceType
+	 * @param contextType
+	 * @param environment
+	 */
+	public Device(String ip, String type, String resourceType, int contextType, String environment) {
+		this.uid = ip.replaceAll("\\.", "") + "_" + resourceType.toLowerCase().trim();
+		this.type = type;
+		this.resourceType = resourceType;
+		this.contextType = contextType;
+		this.ip = ip;
+		
+		this.context = new LinkedHashMap<>();
+		
+		addContext("env", environment);
+		addContext("ip", this.ip);
 	}
-
-	public void setLocation(String location) {
-		this.location = location;
+	
+	/**
+	 * @param ip
+	 * @param type
+	 * @param resourceType
+	 * @param environment
+	 */
+	public Device(String ip, String type, String resourceType, String environment) {
+		this.uid = ip.replaceAll("\\.", "") + "_" + resourceType.toLowerCase().trim() + "_" + environment.toLowerCase().trim();
+		this.type = type;
+		this.resourceType = resourceType;
+		this.contextType = MediaTypeRegistry.APPLICATION_JSON;
+		this.ip = ip;
+		
+		this.context = new LinkedHashMap<>();
+		
+		addContext("env", environment);
+		addContext("ip", this.ip);
 	}
 	
 	/**
@@ -161,6 +191,6 @@ public class Device {
 	 */
 	@Override
 	public String toString() {
-		return "Device [uid=" + uid + ", type=" + type + ", resourceType=" + resourceType + ", contextType=" + contextType + ", ip=" + ip + ", lc=" + location + ", context=" + context + "]";
+		return "Device [uid=" + uid + ", type=" + type + ", resourceType=" + resourceType + ", contextType=" + contextType + ", ip=" + ip + ", context=" + context + "]";
 	}
 }

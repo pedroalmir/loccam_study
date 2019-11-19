@@ -1,27 +1,18 @@
 package great.android.cmu.ubiapp.ui.home;
 
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseExpandableListAdapter;
 import android.widget.ExpandableListAdapter;
 import android.widget.ExpandableListView;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import com.google.gson.Gson;
 
 import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.CoapHandler;
 import org.eclipse.californium.core.CoapResponse;
-import org.eclipse.californium.core.coap.MediaTypeRegistry;
-import org.eclipse.californium.core.network.serialization.DataParser;
 
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,7 +20,7 @@ import java.util.List;
 import androidx.fragment.app.Fragment;
 
 import great.android.cmu.ubiapp.CustomExpandableListAdapter;
-import great.android.cmu.ubiapp.Device;
+import great.android.cmu.ubiapp.model.Device;
 import great.android.cmu.ubiapp.ExpandableListDataPump;
 import great.android.cmu.ubiapp.R;
 

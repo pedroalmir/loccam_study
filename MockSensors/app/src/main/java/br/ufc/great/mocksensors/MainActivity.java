@@ -12,6 +12,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -40,6 +41,11 @@ import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.coap.MediaTypeRegistry;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
@@ -55,6 +61,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import br.ufc.great.mocksensors.loccam.ContextKeys;
 import br.ufc.great.mocksensors.loccam.ContextListener;
+import br.ufc.great.mocksensors.loccam.ContextManager;
 import br.ufc.great.mocksensors.model.Device;
 import br.ufc.great.mocksensors.model.DeviceAction;
 import br.ufc.great.mocksensors.model.DeviceActionMessage;
@@ -66,8 +73,15 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
     private LinkedHashMap<String, String> context;
     private static final String CTOKEN = "CMU-2019";
     private static final String COAP_SERVER_URL = "coap://18.229.202.214:5683/devices";
+    private static final String LOCCAM_FOLDER = "/Android/data/br.ufc.great.loccam/files/components";
 
     private static boolean runUDL_Listener = true;
+
+    private int[] sacs = {
+            R.raw.accelerometer_sac,
+            R.raw.location_sac,
+            R.raw.proximity_sac
+    };
 
     private String[] myPermissions = {
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -84,13 +98,17 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //ContextManager.getInstance().connect(this,"MockSensorsApp_LoCCAM");
-        //ContextManager.getInstance().registerListener(this);
+        try {
+            ContextManager.getInstance().connect(this, "MockSensorsApp_LoCCAM");
+            ContextManager.getInstance().registerListener(this);
+        }catch(Exception ex){
+            System.out.println("LoCCAM offline");
+        }
 
         gson = new Gson();
 
-        new UpdateContextTask().execute(30000l); // Task to update context for each 30 seconds
-        new UDP_Listener().execute();                     // Task to listen broadcast messages
+        new UpdateContextTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, 30000l); // Task to update context for each 30 seconds
+        new UDP_Listener().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);                       // Task to listen broadcast messages
 
         context = new LinkedHashMap<String, String>();
 
@@ -301,7 +319,7 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
         return ContextKeys.PROXIMITY;
     }
 
-    private final class UpdateContextTask extends AsyncTask<Long, String, String>{
+    private class UpdateContextTask extends AsyncTask<Long, String, String>{
         @Override
         protected String doInBackground(Long... waitParams) {
             Looper.prepare();
@@ -318,7 +336,7 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
         }
     }
 
-    private final class UDP_Listener extends AsyncTask<Void, DeviceActionMessage, String>{
+    private class UDP_Listener extends AsyncTask<Void, DeviceActionMessage, String>{
         @Override
         protected String doInBackground(Void... voids) {
             String json;
@@ -331,6 +349,7 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                     DatagramSocket s = new DatagramSocket(server_port);
                     s.receive(p);
                     json = new String(message, 0, p.getLength());
+                    System.out.println(json);
 
                     DeviceActionMessage deviceActionMessage = gsonService.fromJson(json, DeviceActionMessage.class);
 

@@ -1,4 +1,4 @@
-package great.android.cmu.ubiapp;
+package great.android.cmu.ubiapp.model;
 
 import java.util.LinkedHashMap;
 

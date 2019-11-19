@@ -17,54 +17,58 @@ import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.eclipse.californium.core.CoapResource;
 import org.eclipse.californium.core.CoapServer;
 import org.eclipse.californium.core.coap.CoAP.ResponseCode;
+import org.eclipse.californium.core.coap.LinkFormat;
+import org.eclipse.californium.core.coap.MediaTypeRegistry;
 import org.eclipse.californium.core.server.resources.CoapExchange;
 import org.eclipse.californium.core.server.resources.Resource;
-import com.coap.server.skeleton.Skeleton;
-import com.coap.server.utils.Utils;
+
 import com.coap.server.model.Device;
+import com.coap.server.utils.Utils;
 import com.google.gson.Gson;
-
-
 
 /**
  * The Class CoAPServer.
  * 
  * @author Yasith Lokuge, Pedro Almir, Rubens Silva
  * 
- *         Commands to start/stop this application: java -jar [YourJarPath] ps
- *         -ef | grep java sudo kill -9 <pid>
+ * Commands to start/stop this application: nohup java -jar [YourJarPath] &
+ * Get process id: ps -ef | grep java
+ * Kill process: sudo kill -9 <pid>
+ * Tail output file: tail -f nohup.out
  *         
- *         Context:
- *         - recorrencia
- *         - temperatura
- *         - umidade
- *         - proximidade: metros, latitude, longitude
- *         - data e hora
- *         - rede wifi
- *         - atividade
- *         - nome do ambiente 
+ * Context:
+ * - usage
+ * - temperature
+ * - humidity
+ * - latitude, longitude
+ * - WiFi network
+ * - activity
+ * - environment
+ * 
+ * Requests examples:
+ * - coap://<server.ip>:5683/.well-known/core
+ * - coap://<server.ip>:5683/devices?if=sensor
+ * - coap://<server.ip>:5683/devices?proximity=165,-3.7466212,-38.5769008
+ * - coap://<server.ip>:5683/devices?proximity=165,-3.7466212,-38.5769008&if=actuator
+ * - coap://<server.ip>:5683/devices?proximity=165,-3.7466212,-38.5769008&if=actuator&ct=10
  *         
- *         To run the project, start with this file - some devices are added by default. 
- *         
- *         The local tests are in client package. For testing in cloud, instantiate the appropriated 
- *         client the Abstract factory 
- *         	(e.g., new AFClientRequest.sensorCloudClient() for a client request uri's parameter with filter of 'sensors' for cloud) 
- *         - to filter by actuators: run GetAtuatorsTest
- *         - to filter by sensors: run GetSensorsTest
- *         - to get all: run Discover
- *         - to post new five devices: run PostTest
- *         
- *         Fell free to add more tests
+ * To run the project, start with this file - some devices are added by default. 
+ * The local tests are in client package. For testing in cloud, instantiate the appropriated client the Abstract factory 
+ * (e.g., new AFClientRequest.sensorCloudClient() for a client request uri's parameter with filter of 'sensors' for cloud) 
+ * - to filter by actuators: run GetAtuatorsTest
+ * - to filter by sensors: run GetSensorsTest
+ * - to get all: run Discover
+ * - to post new five devices: run PostTest
  */
 public class Server extends CoapServer {
 	
-	
-
 	/**
 	 * The main method.
 	 *
@@ -76,7 +80,6 @@ public class Server extends CoapServer {
 			/* Create and start server */
 			Server server = new Server();
 			server.start();
-
 		} catch (SocketException e) {
 			System.err.println("Failed to initialize server: " + e.getMessage());
 		}
@@ -108,8 +111,6 @@ public class Server extends CoapServer {
 			// set display name
 			getAttributes().setTitle("devices");
 			
-			// ********
-			
 			/* creating the default devices */
 			for(Device device : Utils.createPresetDevices()) {
 				
@@ -117,7 +118,6 @@ public class Server extends CoapServer {
 				newResource.getAttributes().addContentType(device.getContextType());
 				newResource.getAttributes().addResourceType(device.getResourceType());
 				newResource.getAttributes().addInterfaceDescription(device.getType());
-				
 				
 				// all the context goes in this
 				for (String key : device.getContext().keySet()) {
@@ -128,9 +128,7 @@ public class Server extends CoapServer {
 			}
 		}
 
-		/*
-		 * (non-Javadoc)
-		 * 
+		/**
 		 * @see
 		 * org.eclipse.californium.core.CoapResource#handlePOST(org.eclipse.californium.
 		 * core.server.resources.CoapExchange)
@@ -140,42 +138,43 @@ public class Server extends CoapServer {
 			try {
 				Device device = new Gson().fromJson(exchange.getRequestText(), Device.class);
 				
-				/*checking for repeated devices*/
+				/* Checking for repeated devices */
 				for(Resource r : getChildren()) {
 					if(r.getName().equalsIgnoreCase(device.getUid())) {
-						System.out.println("\n== Device already exists: " + device.getUid());
-						r.getAttributes().addContentType(device.getContextType());
-						r.getAttributes().addResourceType(device.getResourceType());
-						r.getAttributes().addInterfaceDescription(device.getType());
-						
-						
+						System.out.print("=== Device already exists: " + device.getUid());
+						r.getAttributes().setAttribute(LinkFormat.CONTENT_TYPE, String.valueOf(device.getContextType()));
+						r.getAttributes().setAttribute(LinkFormat.RESOURCE_TYPE, device.getResourceType());
+						r.getAttributes().setAttribute(LinkFormat.INTERFACE_DESCRIPTION, device.getType());
 						
 						// all the context goes in this
 						for (String key : device.getContext().keySet()) {
-							r.getAttributes().addAttribute(key, device.getContext().get(key));
+							r.getAttributes().setAttribute(key, device.getContext().get(key));
 						}
-						System.out.println("\n changed!\n===");
+						
+						r.getAttributes().setAttribute("uid", device.getUid());
+						
+						System.out.print(" updated!\n");
 						exchange.respond(ResponseCode.CHANGED);
 						return;
 					}
 				}
 
-				/* creating a new Resource */ 
-				CoapResource newResource = new CoapResource(device.getUid() + "_" + device.getType(), true);
+				/* Creating a new Resource */ 
+				CoapResource newResource = new CoapResource(device.getUid(), true);
 				newResource.getAttributes().addContentType(device.getContextType());
 				newResource.getAttributes().addResourceType(device.getResourceType());
 				newResource.getAttributes().addInterfaceDescription(device.getType());
 				
-				
-				
-				// all the context goes in this
+				// Setting context values...
 				for (String key : device.getContext().keySet()) {
 					newResource.getAttributes().addAttribute(key, device.getContext().get(key));
 				}
 				
+				newResource.getAttributes().setAttribute("uid", device.getUid());
+				
 				add(newResource);
 				exchange.respond(ResponseCode.CREATED);
-				System.out.println("===\nCREATED:\t"+device.toString()+"\n===");
+				System.out.println("=== CREATED: " + device.toString());
 			} catch (Exception ex) {
 				exchange.respond(ResponseCode.INTERNAL_SERVER_ERROR);
 			}
@@ -186,175 +185,128 @@ public class Server extends CoapServer {
 	    public void handleGET(CoapExchange exchange) {
 	    	System.out.println("=======================");
 	    	try {
-	    		
 	    		System.out.println("\n*****");
-	    		System.out.println("children: "+getChildren());
+	    		System.out.println("Children: " + getChildren());
 		    	
-	    		System.out.println("> exchange \n");
-	    		System.out.println(">RequestText: "+ exchange.getRequestText());
-	    		System.out.println(">request payload: "+ exchange.getRequestPayload());
-	    		System.out.println(">source address (ip):"+ exchange.getSourceAddress());
-	    		System.out.println(">source port: "+ exchange.getSourcePort());
-	    		System.out.println(">request code: "+ exchange.getRequestCode());
-	    		System.out.println(">request options: "+ exchange.getRequestOptions());
-	    		System.out.println(">request options > URI host: "+ exchange.getRequestOptions().getURIHost());
+	    		System.out.println("> Exchange \n");
+	    		System.out.println("> RequestText: " + exchange.getRequestText());
+	    		System.out.println("> Request payload: " + exchange.getRequestPayload());
+	    		System.out.println("> Source address (ip): " + exchange.getSourceAddress());
+	    		System.out.println("> Source port: " + exchange.getSourcePort());
+	    		System.out.println("> Request code: " + exchange.getRequestCode());
+	    		System.out.println("> Request options: " + exchange.getRequestOptions());
+	    		System.out.println("> Request options > URI host: " + exchange.getRequestOptions().getURIHost());
 	    		
 	    		// separates the URIs
-		    	List<String> uriPaths = exchange.getRequestOptions().getURIQueries();
+	    		LinkedHashMap<String, String> filters = new LinkedHashMap<>();
+		    	List<String> params = exchange.getRequestOptions().getURIQueries();
 		    	
-		    	
-		    	System.out.println("parames: "+uriPaths);
+		    	System.out.println("Parameters: " + params);
 		    	System.out.println("\n*****");
 		    	
-		    	if(uriPaths.size() >= 1) {
-		    		// the filter is passed by the uri as "/devices/filter"
-		    		
-
-		    		// this filters by all children devices
-		    		Collection<Resource> filtered = dispatchDevices(uriPaths);
-
-		    		// marshaling to json and sending
-		    		//Gson gson = new Gson();
-		    		
-		    		ArrayList<HashMap<String, String> > resList = new ArrayList<HashMap<String, String>>();
-		    		
-		    		System.out.println("Result:");
-		    		for(Resource r : filtered) {
-		    			
-		    			HashMap<String, String> newEl = new HashMap<String, String>();
-		    			
-		    			System.out.println("\n---");
-		    			for(String s : r.getAttributes().getAttributeKeySet()) {
-		    				System.out.println(r.getAttributes().getAttributeValues(s));
-		    				newEl.put(s, r.getAttributes().getAttributeValues(s).get(0));
-		    			}
-		    			resList.add(newEl);
-		    			System.out.println("---");
-		    		}
-		    		
-		    		exchange.respond(resList.toString());
-		    	}else {
-		    		exchange.respond(ResponseCode.BAD_REQUEST);
+		    	for(String uriParam : params){
+		    		String[] keyValue = uriParam.split("=");
+		    		filters.put(keyValue[0].trim(), keyValue[1].trim());
 		    	}
+		    	
+		    	System.out.println("filters: " + filters);
+		    	
+		    	// This filters by all children devices
+	    		Collection<Resource> filtered = filterDevices(filters);
+	    		exchange.respond(ResponseCode.VALID, new Gson().toJson(convertResourceToDevice(filtered)), MediaTypeRegistry.APPLICATION_JSON);
 	    	}catch(Exception e) {
 	    		e.printStackTrace();
 	    	}
 	    	
 	    	System.out.println("=======================");
-	    	
 	    }
 	    
 	    /**
-	     * Receives a list of URI Strings separated, each separated by '=', 
-	     * and returns the devices that match with the URI filters 
-	     * 
-	     * 		Context:
-		 *         - recorrencia
-		 *         - temperatura
-		 *         - umidade
-		 *         - proximidade: metros, latitude, longitude
-		 *         - data e hora
-		 *         - rede wifi
-		 *         - atividade
-		 *         - nome do ambiente 
-		 *         
-		 * @param uris the URI list
-		 */
-	    public Collection<Resource> dispatchDevices(List<String> uris){
-	    	System.out.println("=== Dispatching ===");
-	    	Collection<Resource> children = getChildren();
+	     * @param resources
+	     * @return
+	     */
+	    private List<Device> convertResourceToDevice(Collection<Resource> resources){
+	    	List<Device> devices = new ArrayList<>();
+	    	Iterator<Resource> iterator = resources.iterator();
+	    	while (iterator.hasNext()) {
+				Resource resource = (Resource) iterator.next();
+				Iterator<String> attrKeySet = resource.getAttributes().getAttributeKeySet().iterator();
+				
+				Device device = new Device();
+				device.setUid(resource.getName());
+				LinkedHashMap<String, String> context = new LinkedHashMap<>();
+				while (attrKeySet.hasNext()) {
+					String key = (String) attrKeySet.next();
+					String value = resource.getAttributes().getAttributeValues(key).get(0).trim();
+					
+					if(!value.isEmpty()){
+						if(key.equals("if")){
+							device.setType(value);
+						}else if(key.equals("ct")){
+							device.setContextType(Integer.valueOf(value));
+						}else if(key.equals("rt")){
+							device.setResourceType(value);
+						}else if(key.equals("ip")){
+							device.setIp(value);
+						}else{
+							context.put(key, value);
+						}
+					}
+				}
+				device.setContext(context);
+				devices.add(device);
+			}
+	    	return devices;
+	    }
+	    
+	    /**
+	     * @param filters
+	     * @return
+	     */
+	    private Collection<Resource> filterDevices(HashMap<String, String> filters){
+	    	Collection<Resource> res = new ArrayList<Resource>(getChildren());
 	    	
-	    	for(String uri: uris) {
-	    		
-	    		// no 0 h� o tipo e nos outros h� a informa��o
-	    		// ... sempre que passar por um filtro, manter o mesmo conjunto...
-	    		ArrayList <String> params = handleURI(uri);
-	    		String tipo = params.get(0);
-	    		String valour = params.get(1);
-	    		Skeleton skt = new Skeleton();
-	    		switch(tipo) {
-	    			case "if":
-	    				// type: usado quando se quer um tipo de device. ie sensor ou actuator
-	    				children = skt.typeSkt(valour, children);
-	    				break;
-	    			case "rt": 
-	    				// resource type : usado quando se quer todos os elementos de um tipo de resource. eg lightness
-	    				children = skt.resourceType(valour, children);
-	    				break;
+	    	Iterator<Resource> iterator = res.iterator();
+	    	while (iterator.hasNext()) {
+				Resource resource = (Resource) iterator.next();
+				Iterator<String> attrKeySet = resource.getAttributes().getAttributeKeySet().iterator();
+				boolean flagRemove = false;
+				while (attrKeySet.hasNext()) {
+					String key = (String) attrKeySet.next();
+					String value = resource.getAttributes().getAttributeValues(key).get(0).trim();
+					if(filters.get(key) != null && !filters.get(key).equalsIgnoreCase(value)){
+						flagRemove = true;
+						break;
+					}
+				}
+				if(flagRemove) iterator.remove();
+			}
+	    	
+	    	//Filter by proximity (?proximity=radius,lat,long)
+	    	if(filters.get("proximity") != null && !filters.get("proximity").isEmpty()){
+	    		String[] fValues = filters.get("proximity").split(",");
+	    		try{
+	    			Double radius = Double.valueOf(fValues[0]);
+	    			Double fLat = Double.valueOf(fValues[1]);
+	    			Double fLong = Double.valueOf(fValues[2]);
 	    			
-	    			default: 
-	    				// usado quando se quer filtrar por um tipo e seu valor. eg location=classroom
-	    				System.out.println("Specific info:" + params);
-	    				children = skt.contextSkt(tipo, valour, children);
-	    		}
-	    		
-	    	}
-	    	System.out.println("=== end dispatch ===");
-	    	return children;
-	    }
-	        
-	    
-	    
-	    
-	    
-	    
-	    /**
-	     * Splits the URI parameters.
-	     * 
-	     * @param uri the URI like 'type=sensor'
-	     * */
-	    private ArrayList<String> handleURI(String uri){
-	    	System.out.println("=== on handleURI | uri: "+ uri);
-	    	if(uri == null) {
-	    		System.out.println("! handleURI | no valid uri: "+ uri);
-	    		return null;
-	    	}
-	    	// devices?arg0,arg1,...
-	    	String[] params = uri.split("=");
-	    	System.out.println("=== params: "+ params);
-	    	
-	    	ArrayList<String> res = new ArrayList<String>();
-	    	
-	    	for(String s : params) {
-	    		res.add(s);
-	    	}
-	    	System.out.println("=== res: "+ res);
-	    	return res;
-	    }
-	    
-	    /**
-	     * Just for testing fields
-	     * */
-	    @SuppressWarnings("unused")
-		private Collection<Resource> test(){
-	    	Collection<Resource> children = getChildren();
-	    	Collection<Resource> res = new ArrayList<Resource>();
-	    	
-	    	System.out.println("attributes: "+getAttributes());
-	    	
-	    	for(Resource child : children) {
-	    		System.out.println("+===");
-	    		System.out.println("on filter: " + child.getName());
-	    		System.out.println("> path: " + child.getPath());
-	    		System.out.println("> uri: " + child.getURI());
-	    		System.out.println("> class: " + child.getClass());
-	    		System.out.println("> attributes>: " + child.getAttributes());
-	    		for(String s : child.getAttributes().getAttributeKeySet()) {
-	    			System.out.println(">> "+ s + ": " + child.getAttributes().getAttributeValues(s));
-	    		}
-	    		System.out.println("> attributes>resourceTypes: " + child.getAttributes().getResourceTypes());
-	    		System.out.println("> attributes>contentTypes: " + child.getAttributes().getContentTypes());
-	    		System.out.println("> attributes>interfaceDescriptions: " + child.getAttributes().getInterfaceDescriptions());
-	    		System.out.println("> attributes>title: " + child.getAttributes().getTitle());
-	    		System.out.println("> children: " + child.getChildren());
-	    		
-	    		
-	    		System.out.println("+===");
+	    			Iterator<Resource> newIterator = res.iterator();
+	    			while (newIterator.hasNext()) {
+	    				Resource resource = (Resource) newIterator.next();
+	    				try{
+	    					Double deviceLat = Double.valueOf(resource.getAttributes().getAttributeValues("latitude").get(0));
+	    					Double deviceLong = Double.valueOf(resource.getAttributes().getAttributeValues("longitude").get(0));
+	    					
+	    					if(Utils.distance(fLat, deviceLat, fLong, deviceLong) > radius) newIterator.remove();
+	    				}catch(Exception nPP){
+	    					newIterator.remove();
+	    				}
+	    			}
+	    		}catch(Exception ex){ /* Problems with filter. So, ignore it! */ }
 	    	}
 	    	
 	    	return res;
 	    }
-
 	}
 
 }
