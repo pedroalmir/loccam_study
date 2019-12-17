@@ -17,6 +17,8 @@ public class DeviceActionMessage {
 	/** List of IPs to actuate */
 	private List<String> ips;
 
+	private Object[] clientData;
+
 	/** Default constructor */
 	public DeviceActionMessage() {}
 
@@ -31,6 +33,13 @@ public class DeviceActionMessage {
 		this.ips = ips;
 	}
 
+	public void setClientData(Object[] data){
+		this.clientData = data;
+	}
+
+	public Object[] getClientData(){
+		return this.clientData;
+	}
 
 	/**
 	 * @return the cToken

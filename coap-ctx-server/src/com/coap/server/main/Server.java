@@ -115,9 +115,10 @@ public class Server extends CoapServer {
 			for(Device device : Utils.createPresetDevices()) {
 				
 				CoapResource newResource = new CoapResource(device.getUid(), true);
-				newResource.getAttributes().addContentType(device.getContextType());
-				newResource.getAttributes().addResourceType(device.getResourceType());
 				newResource.getAttributes().addInterfaceDescription(device.getType());
+				newResource.getAttributes().addResourceType(device.getResourceType());
+				newResource.getAttributes().addContentType(device.getContextType());
+				newResource.getAttributes().setAttribute("ip", device.getIp());
 				
 				// all the context goes in this
 				for (String key : device.getContext().keySet()) {
@@ -142,16 +143,16 @@ public class Server extends CoapServer {
 				for(Resource r : getChildren()) {
 					if(r.getName().equalsIgnoreCase(device.getUid())) {
 						System.out.print("=== Device already exists: " + device.getUid());
-						r.getAttributes().setAttribute(LinkFormat.CONTENT_TYPE, String.valueOf(device.getContextType()));
-						r.getAttributes().setAttribute(LinkFormat.RESOURCE_TYPE, device.getResourceType());
 						r.getAttributes().setAttribute(LinkFormat.INTERFACE_DESCRIPTION, device.getType());
+						r.getAttributes().setAttribute(LinkFormat.RESOURCE_TYPE, device.getResourceType());
+						r.getAttributes().setAttribute(LinkFormat.CONTENT_TYPE, String.valueOf(device.getContextType()));
+						r.getAttributes().setAttribute("ip", device.getIp());
+						
 						
 						// all the context goes in this
 						for (String key : device.getContext().keySet()) {
 							r.getAttributes().setAttribute(key, device.getContext().get(key));
 						}
-						
-						r.getAttributes().setAttribute("uid", device.getUid());
 						
 						System.out.print(" updated!\n");
 						exchange.respond(ResponseCode.CHANGED);
@@ -161,16 +162,16 @@ public class Server extends CoapServer {
 
 				/* Creating a new Resource */ 
 				CoapResource newResource = new CoapResource(device.getUid(), true);
-				newResource.getAttributes().addContentType(device.getContextType());
-				newResource.getAttributes().addResourceType(device.getResourceType());
+				
 				newResource.getAttributes().addInterfaceDescription(device.getType());
+				newResource.getAttributes().addResourceType(device.getResourceType());
+				newResource.getAttributes().addContentType(device.getContextType());
+				newResource.getAttributes().setAttribute("ip", device.getIp());
 				
 				// Setting context values...
 				for (String key : device.getContext().keySet()) {
-					newResource.getAttributes().addAttribute(key, device.getContext().get(key));
+					newResource.getAttributes().setAttribute(key, device.getContext().get(key));
 				}
-				
-				newResource.getAttributes().setAttribute("uid", device.getUid());
 				
 				add(newResource);
 				exchange.respond(ResponseCode.CREATED);
@@ -212,8 +213,17 @@ public class Server extends CoapServer {
 		    	System.out.println("filters: " + filters);
 		    	
 		    	// This filters by all children devices
-	    		Collection<Resource> filtered = filterDevices(filters);
-	    		exchange.respond(ResponseCode.VALID, new Gson().toJson(convertResourceToDevice(filtered)), MediaTypeRegistry.APPLICATION_JSON);
+		    	if(filters.size() == 0){
+		    		String json = new Gson().toJson(convertResourceToDevice(getChildren()));
+		    		System.out.println("Devices returned: " + getChildren().size());
+		    		exchange.respond(ResponseCode.VALID, json, MediaTypeRegistry.APPLICATION_JSON);
+		    	}else{
+		    		Collection<Resource> filtered = filterDevices(filters);
+		    		String json = new Gson().toJson(convertResourceToDevice(filtered));
+		    		System.out.println("Devices returned: " + filtered.size());
+		    		exchange.respond(ResponseCode.VALID, json, MediaTypeRegistry.APPLICATION_JSON);
+		    	}
+	    		
 	    	}catch(Exception e) {
 	    		e.printStackTrace();
 	    	}
@@ -235,6 +245,7 @@ public class Server extends CoapServer {
 				Device device = new Device();
 				device.setUid(resource.getName());
 				LinkedHashMap<String, String> context = new LinkedHashMap<>();
+				
 				while (attrKeySet.hasNext()) {
 					String key = (String) attrKeySet.next();
 					String value = resource.getAttributes().getAttributeValues(key).get(0).trim();
@@ -253,6 +264,7 @@ public class Server extends CoapServer {
 						}
 					}
 				}
+				
 				device.setContext(context);
 				devices.add(device);
 			}
@@ -265,8 +277,20 @@ public class Server extends CoapServer {
 	     */
 	    private Collection<Resource> filterDevices(HashMap<String, String> filters){
 	    	Collection<Resource> res = new ArrayList<Resource>(getChildren());
-	    	
 	    	Iterator<Resource> iterator = res.iterator();
+	    	Iterator<String> filterIterator = filters.keySet().iterator();
+	    	while(filterIterator.hasNext()){
+	    		String filter = filterIterator.next();
+	    		while (iterator.hasNext()) {
+	    			Resource resource = (Resource) iterator.next();
+	    			List<String> values = resource.getAttributes().getAttributeValues(filter);
+	    			if(!(values != null && values.size() > 0) && !filter.equals("proximity")){
+	    				iterator.remove();
+	    			}
+	    		}
+	    	}
+	    	
+	    	iterator = res.iterator();
 	    	while (iterator.hasNext()) {
 				Resource resource = (Resource) iterator.next();
 				Iterator<String> attrKeySet = resource.getAttributes().getAttributeKeySet().iterator();
@@ -289,17 +313,15 @@ public class Server extends CoapServer {
 	    			Double radius = Double.valueOf(fValues[0]);
 	    			Double fLat = Double.valueOf(fValues[1]);
 	    			Double fLong = Double.valueOf(fValues[2]);
-	    			
-	    			Iterator<Resource> newIterator = res.iterator();
-	    			while (newIterator.hasNext()) {
-	    				Resource resource = (Resource) newIterator.next();
+	    			iterator = res.iterator();
+	    			while (iterator.hasNext()) {
+	    				Resource resource = (Resource) iterator.next();
 	    				try{
 	    					Double deviceLat = Double.valueOf(resource.getAttributes().getAttributeValues("latitude").get(0));
 	    					Double deviceLong = Double.valueOf(resource.getAttributes().getAttributeValues("longitude").get(0));
-	    					
-	    					if(Utils.distance(fLat, deviceLat, fLong, deviceLong) > radius) newIterator.remove();
+	    					if(Utils.distance(fLat, deviceLat, fLong, deviceLong) > radius) iterator.remove();
 	    				}catch(Exception nPP){
-	    					newIterator.remove();
+	    					iterator.remove();
 	    				}
 	    			}
 	    		}catch(Exception ex){ /* Problems with filter. So, ignore it! */ }

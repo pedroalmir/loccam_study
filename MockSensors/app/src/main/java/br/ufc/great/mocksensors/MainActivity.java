@@ -5,6 +5,8 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
@@ -42,7 +44,6 @@ import org.eclipse.californium.core.coap.MediaTypeRegistry;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,8 +58,10 @@ import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import br.ufc.great.mocksensors.loccam.ContextKeys;
 import br.ufc.great.mocksensors.loccam.ContextListener;
 import br.ufc.great.mocksensors.loccam.ContextManager;
@@ -66,59 +69,119 @@ import br.ufc.great.mocksensors.model.Device;
 import br.ufc.great.mocksensors.model.DeviceAction;
 import br.ufc.great.mocksensors.model.DeviceActionMessage;
 
-public class MainActivity extends AppCompatActivity implements ContextListener {
+public class MainActivity extends AppCompatActivity {
 
     private Gson gson;
     private ArrayList<Device> devices;
-    private LinkedHashMap<String, String> context;
+    private LinkedHashMap<String, String> myContext;
     private static final String CTOKEN = "CMU-2019";
     private static final String COAP_SERVER_URL = "coap://18.229.202.214:5683/devices";
-    private static final String LOCCAM_FOLDER = "/Android/data/br.ufc.great.loccam/files/components";
+    private static final String LOCCAM_FOLDER = "/storage/emulated/0/Android/data/br.ufc.great.loccam/files/components/";
 
     private static boolean runUDL_Listener = true;
 
     private int[] sacs = {
-            R.raw.accelerometer_sac,
-            R.raw.location_sac,
-            R.raw.proximity_sac
+            R.raw.proximity_sac,
+            R.raw.sound_level_sac
     };
 
     private String[] myPermissions = {
             Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.INTERNET,
             Manifest.permission.ACCESS_NETWORK_STATE,
             Manifest.permission.ACCESS_WIFI_STATE,
+            Manifest.permission.CHANGE_WIFI_STATE,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.VIBRATE,
-            Manifest.permission_group.SENSORS
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.CAMERA,
     };
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ContextManager.getInstance().disconnect();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        checkPermissions();
+
+        File directory = new File(LOCCAM_FOLDER);
+        //System.out.println(directory.mkdirs() + " - " + directory.exists());
+
         try {
-            ContextManager.getInstance().connect(this, "MockSensorsApp_LoCCAM");
-            ContextManager.getInstance().registerListener(this);
+            for(int sac : sacs){
+                InputStream in = getResources().openRawResource(sac);
+                String sacFilename = getResources().getResourceName(sac).split("/")[1] + ".jar";
+                //System.out.println(sacFilename);
+                FileOutputStream out = new FileOutputStream(LOCCAM_FOLDER + sacFilename);
+                byte[] buff = new byte[1024];
+                int read = 0;
+
+                try {
+                    while ((read = in.read(buff)) > 0) {
+                        out.write(buff, 0, read);
+                    }
+                } finally {
+                    in.close();
+                    out.close();
+                }
+            }
+
+            ContextManager.getInstance().connect(this.getApplicationContext(), "MockSensorsApp_LoCCAM");
+            ContextManager.getInstance().registerListener(new ContextListener() {
+                @Override
+                public void onContextReady(String data) {
+                    MainActivity.this.myContext.put("proximitySensor", data.toLowerCase().replace("[", "").replace("]", "").trim());
+                    //System.out.println("LoCCAM Proximity: " + data.toLowerCase().replace("[", "").replace("]", "").trim());
+                }
+
+                @Override
+                public String getContextKey() {
+                    return ContextKeys.PROXIMITY;
+                }
+            });
+            ContextManager.getInstance().registerListener(new ContextListener() {
+                @Override
+                public void onContextReady(String data) {
+                    Float floatValue = Float.valueOf(data.toLowerCase().replace("[", "").replace("]", ""));
+                    MainActivity.this.myContext.put("soundlevel", String.format("%.2f", floatValue));
+                    //System.out.println("LoCCAM Sound Level: " + String.format("%.2f", floatValue));
+                }
+
+                @Override
+                public String getContextKey() {
+                    return ContextKeys.SOUND_LEVEL;
+                }
+            });
         }catch(Exception ex){
-            System.out.println("LoCCAM offline");
+            ex.printStackTrace();
         }
+
+        Sensor lightSensor = ((SensorManager) getSystemService(SENSOR_SERVICE)).getDefaultSensor(Sensor.TYPE_LIGHT);
+        SensorEventListener luminosityEL = new SensorEventListener() {
+            @Override
+            public void onSensorChanged(SensorEvent sensorEvent) {
+                myContext.put("luminosity", String.format("%.2f", sensorEvent.values[0]));
+            }
+
+            @Override
+            public void onAccuracyChanged(Sensor sensor, int i) {
+            }
+        };
+        ((SensorManager) getSystemService(SENSOR_SERVICE)).registerListener(luminosityEL, lightSensor, SensorManager.SENSOR_DELAY_FASTEST);
 
         gson = new Gson();
+        myContext = new LinkedHashMap<String, String>();
 
-        new UpdateContextTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, 30000l); // Task to update context for each 30 seconds
+        new UpdateContextTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, 30000l); // Task to update myContext for each 30 seconds
         new UDP_Listener().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);                       // Task to listen broadcast messages
-
-        context = new LinkedHashMap<String, String>();
-
-        if(ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                requestPermissions(myPermissions,123);
-            }
-        }else {
-            startSnapshots();
-        }
 
         SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         List<Sensor> availableSensors = sensorManager.getSensorList(Sensor.TYPE_ALL);
@@ -140,18 +203,20 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
 
     public void checkAndSendCoapRequest(){
         String envText = ((EditText) findViewById(R.id.editText)).getText().toString().trim();
-        if(envText.length() > 0) context.put("env", envText);
+        if(envText.length() > 0) myContext.put("env", envText);
 
         WifiManager manager = (WifiManager) MainActivity.this.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         WifiInfo info = manager.getConnectionInfo();
         String sSID = info.getSSID();
-        if(sSID.length() > 0) context.put("network", sSID);
+        if(sSID.length() > 0) myContext.put("network", sSID.replaceAll("\"", "").trim());
 
         NetworkConfig.createStandardWithoutFile();
         CoapClient client = new CoapClient(COAP_SERVER_URL);
         for(Device device : devices){
-            device.setContext(context);
-            client.post(gson.toJson(device), MediaTypeRegistry.APPLICATION_JSON);
+            device.setContext(myContext);
+            String json = gson.toJson(device);
+            //System.out.println(json);
+            client.post(json, MediaTypeRegistry.APPLICATION_JSON);
         }
         Toast.makeText(MainActivity.this, "CoAP Request Sent!", Toast.LENGTH_LONG).show();
     }
@@ -159,21 +224,21 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
     @SuppressLint("MissingPermission")
     public void startSnapshots(){
         SnapshotClient snapshot = Awareness.getSnapshotClient(MainActivity.this);
-        System.out.println("Starting snapshots...");
+        //System.out.println("Starting snapshots...");
         snapshot.getWeather().addOnSuccessListener(new OnSuccessListener<WeatherResponse>() {
             @Override
             public void onSuccess(WeatherResponse weatherResponse) {
-                context.put("temperature", String.format("%.2f", weatherResponse.getWeather().getTemperature(Weather.CELSIUS)));
-                context.put("humidity", weatherResponse.getWeather().getHumidity() + "");
-                context.put("feels", String.format("%.2f", weatherResponse.getWeather().getFeelsLikeTemperature(Weather.CELSIUS)));
+                myContext.put("temperature", String.format("%.2f", weatherResponse.getWeather().getTemperature(Weather.CELSIUS)));
+                myContext.put("humidity", weatherResponse.getWeather().getHumidity() + "");
+                myContext.put("feels", String.format("%.2f", weatherResponse.getWeather().getFeelsLikeTemperature(Weather.CELSIUS)));
             }
         });
 
         snapshot.getLocation().addOnSuccessListener(new OnSuccessListener<LocationResponse>() {
             @Override
             public void onSuccess(LocationResponse locationResponse) {
-                context.put("latitude", locationResponse.getLocation().getLatitude() + "");
-                context.put("longitude", locationResponse.getLocation().getLongitude() + "");
+                myContext.put("latitude", locationResponse.getLocation().getLatitude() + "");
+                myContext.put("longitude", locationResponse.getLocation().getLongitude() + "");
             }
         });
 
@@ -192,8 +257,7 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                     case DetectedActivity.RUNNING:    detectedActivity = "running";   break;
                     default: detectedActivity = "unknown";
                 }
-
-                context.put("detectedActivity", detectedActivity);
+                myContext.put("detectedActivity", detectedActivity);
             }
         });
 
@@ -217,7 +281,7 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                     default: interval = "unknown";
                 }
 
-                context.put("timeInterval", interval);
+                myContext.put("timeInterval", interval);
                 Toast.makeText(MainActivity.this, "Context updated!", Toast.LENGTH_LONG).show();
             }
         });
@@ -226,24 +290,55 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
     public ArrayList<Device> createDevices(List<Sensor> sensors){
         ArrayList<String> uuids = new ArrayList<>();
         ArrayList<Device> devices = new ArrayList<>();
+        String ip = getLocalIpAddress();
 
         for(Sensor sensor : sensors){
             if(sensor != null
                     && !(sensor.getStringType().toLowerCase().contains("não calibrado") || sensor.getStringType().toLowerCase().contains("uncalibrated"))
                     && sensorTypeToString(sensor.getType()) != "Unknown"){
 
-                String ip = getLocalIpAddress();
+
                 String rType = sensorTypeToString(sensor.getType());
                 String type = (rType.equals("Light") || rType.equals("AmbientTemperature")) ? "actuator" : "sensor";
                 String uid = ip.replaceAll("\\.", "") + "_" + rType.toLowerCase().replaceAll(" ", "").trim();
 
                 if(!uuids.contains(uid)){
-                    devices.add(new Device(uid, type, rType, MediaTypeRegistry.APPLICATION_JSON, ip));
+                    devices.add(new Device(uid, type, rType, MediaTypeRegistry.APPLICATION_JSON, getLocalIpAddress()));
                 }
             }
         }
 
+        devices.add(new Device(ip + "_vibrate", "actuator", "Vibrate", MediaTypeRegistry.APPLICATION_JSON, getLocalIpAddress()));
         return devices;
+    }
+
+    // Function to check and request permission.
+    public void checkPermissions(){
+        int code = 0;
+        for(String permission : myPermissions){
+            if (ContextCompat.checkSelfPermission(MainActivity.this, permission) == PackageManager.PERMISSION_DENIED) {
+                // Requesting the permission
+                //System.out.println("Requesting permission " + permission);
+                ActivityCompat.requestPermissions(MainActivity.this, new String[] { permission }, code);
+            } else {
+                //System.out.println("Permission " + permission + " already granted!");
+                //Toast.makeText(MainActivity.this,"Permission " + permission + " already granted!", Toast.LENGTH_SHORT).show();
+            }
+            code++;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            //System.out.println("Permission " + myPermissions[requestCode] + " granted!");
+            //Toast.makeText(MainActivity.this, "Permission" + myPermissions[requestCode] + " granted!", Toast.LENGTH_SHORT).show();
+        } else {
+            //System.out.println("Permission " + myPermissions[requestCode] + " denied!");
+            //Toast.makeText(MainActivity.this,"Permission" + myPermissions[requestCode] + " denied!", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private String sensorTypeToString(int sensorType) {
@@ -308,17 +403,6 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
         return null;
     }
 
-    @Override
-    public void onContextReady(String data) {
-        System.out.println("\n###############\n" + data + "\n###############\n");
-        Log.d("LOCCAM", data);
-    }
-
-    @Override
-    public String getContextKey() {
-        return ContextKeys.PROXIMITY;
-    }
-
     private class UpdateContextTask extends AsyncTask<Long, String, String>{
         @Override
         protected String doInBackground(Long... waitParams) {
@@ -327,7 +411,7 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                 try {
                     Thread.sleep(waitParams[0]);
                     MainActivity.this.startSnapshots();
-                    System.out.println("Context: " + MainActivity.this.context);
+                    //System.out.println("Context: " + MainActivity.this.myContext);
                     MainActivity.this.checkAndSendCoapRequest();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -349,17 +433,17 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                     DatagramSocket s = new DatagramSocket(server_port);
                     s.receive(p);
                     json = new String(message, 0, p.getLength());
-                    System.out.println(json);
+                    //System.out.println(json);
 
                     DeviceActionMessage deviceActionMessage = gsonService.fromJson(json, DeviceActionMessage.class);
-
+                    deviceActionMessage.setClientData(new Object[]{p.getAddress(), Integer.valueOf(p.getPort())});
                     s.close();
                     publishProgress(deviceActionMessage);
                 }catch(Exception e){
                     Log.d("UDP_Listener","Error: " + e.toString());
                 }
             }
-            return "UDL Listener Closed";
+            return "UDP Listener Closed";
         }
 
         @Override
@@ -405,6 +489,8 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
                             Toast.makeText(MainActivity.this, "Unknown action type: " + action.getType(), Toast.LENGTH_LONG).show();
                         }
                     }
+
+                    new UDP_Sender().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, message.getClientData()[0], message.getClientData()[1], (MainActivity.CTOKEN + ": Acting completed successfully!"));
                 }
             }
         }
@@ -412,6 +498,29 @@ public class MainActivity extends AppCompatActivity implements ContextListener {
         @Override
         protected void onPostExecute(String result) {
             Toast.makeText(MainActivity.this, result, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private class UDP_Sender extends AsyncTask<Object, Void, Void>{
+
+        @Override
+        protected Void doInBackground(Object... inputs) {
+            byte[] callbackMessage = new byte[1024];
+            callbackMessage = ((String) inputs[2]).getBytes();
+            DatagramPacket reply = new DatagramPacket(callbackMessage, callbackMessage.length, (InetAddress) inputs[0], 6789);
+
+            try {
+                DatagramSocket s = new DatagramSocket(6790);
+                //System.out.println("Sending UDP to " + ((InetAddress) inputs[0]).toString() + ": " + (Integer) inputs[1] + " with message: " + ((String) inputs[2]));
+                s.send(reply);
+                s.close();
+            } catch (SocketException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return null;
         }
     }
 }

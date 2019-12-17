@@ -16,6 +16,9 @@ public class Device {
     /** Device context. E.g.: <"temperature", "29ºC"> */
     private LinkedHashMap<String, String> context;
 
+    /** Default constructor */
+    public Device() { }
+
     /**
      * @param uid
      * @param type

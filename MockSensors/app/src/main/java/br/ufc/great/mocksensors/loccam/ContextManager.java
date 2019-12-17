@@ -68,7 +68,7 @@ public class ContextManager implements LoccamListener {
                 public void react(Tuple tuple) throws RemoteException {
                     listener.onContextReady(tuple.getField(2).getValue().toString());
                 }
-            }, "put", ContextKeys.PROXIMITY, null);
+            }, "put", listener.getContextKey(), null);
         }
     }
 
@@ -83,6 +83,7 @@ public class ContextManager implements LoccamListener {
     public void initLoccam(List<String> listaSacs){
         for (String string : listaSacs){
             loccamManager.init(string);
+            //System.out.println("Sac: " + string);
         }
     }
 }

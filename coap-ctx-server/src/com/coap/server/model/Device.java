@@ -32,49 +32,24 @@ public class Device {
 	
 	/** Default constructor */
 	public Device() { }
-
+	
 	/**
-	 * The Device constructor
 	 * @param uid
 	 * @param type
 	 * @param resourceType
 	 * @param contextType
 	 * @param ip
-	 * @param location 
+	 * @param context
 	 */
-	public Device(String uid, String type, String resourceType, int contextType, String ip, String environment) {
+	public Device(String uid, String type, String resourceType, int contextType, String ip, LinkedHashMap<String, String> context) {
 		this.uid = uid;
 		this.type = type;
 		this.resourceType = resourceType;
 		this.contextType = contextType;
 		this.ip = ip;
-		
-		this.context = new LinkedHashMap<>();
-		
-		addContext("env", environment);
-		addContext("ip", this.ip);
+		this.context = context;
 	}
-	
-	/**
-	 * @param ip
-	 * @param type
-	 * @param resourceType
-	 * @param contextType
-	 * @param environment
-	 */
-	public Device(String ip, String type, String resourceType, int contextType, String environment) {
-		this.uid = ip.replaceAll("\\.", "") + "_" + resourceType.toLowerCase().trim();
-		this.type = type;
-		this.resourceType = resourceType;
-		this.contextType = contextType;
-		this.ip = ip;
-		
-		this.context = new LinkedHashMap<>();
-		
-		addContext("env", environment);
-		addContext("ip", this.ip);
-	}
-	
+
 	/**
 	 * @param ip
 	 * @param type
@@ -91,7 +66,6 @@ public class Device {
 		this.context = new LinkedHashMap<>();
 		
 		addContext("env", environment);
-		addContext("ip", this.ip);
 	}
 	
 	/**

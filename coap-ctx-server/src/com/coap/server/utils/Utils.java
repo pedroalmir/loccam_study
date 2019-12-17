@@ -11,6 +11,10 @@ import com.coap.server.model.Device;
 
 public abstract class Utils {
 	
+	public static void main(String[] args) {
+		System.out.println(Utils.distance(-3.7544359, -3.7544436, -38.5815867, -38.5815956));
+	}
+	
 	/**
 	 * Calculate distance between two points in latitude and longitude taking
 	 * into account height difference. If you are not interested in height
@@ -70,9 +74,9 @@ public abstract class Utils {
 		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
 		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
 		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
-		device1.addContext("lat", "-3.746452"); device1.addContext("long", "-38.578157");
-		device2.addContext("lat", "-3.746452"); device1.addContext("long", "-38.578157");
-		device3.addContext("lat", "-3.746452"); device1.addContext("long", "-38.578157");
+		device1.addContext("latitude", "-3.746452"); device1.addContext("longitude", "-38.578157");
+		device2.addContext("latitude", "-3.746452"); device2.addContext("longitude", "-38.578157");
+		device3.addContext("latitude", "-3.746452"); device3.addContext("longitude", "-38.578157");
 		devices.add(device1); devices.add(device2); devices.add(device3);
 		
 		device1 = new Device(ip, "actuator", "airconditioning", "labaula02");
@@ -81,9 +85,9 @@ public abstract class Utils {
 		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
 		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
 		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
-		device1.addContext("lat", "-3.746481"); device1.addContext("long", "-38.578219");
-		device2.addContext("lat", "-3.746481"); device1.addContext("long", "-38.578219");
-		device3.addContext("lat", "-3.746481"); device1.addContext("long", "-38.578219");
+		device1.addContext("latitude", "-3.746481"); device1.addContext("longitude", "-38.578219");
+		device2.addContext("latitude", "-3.746481"); device2.addContext("longitude", "-38.578219");
+		device3.addContext("latitude", "-3.746481"); device3.addContext("longitude", "-38.578219");
 		devices.add(device1); devices.add(device2); devices.add(device3);
 		
 		device1 = new Device(ip, "actuator", "airconditioning", "lab10");
@@ -100,9 +104,9 @@ public abstract class Utils {
 		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
 		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
 		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
-		device1.addContext("lat", "-3.746466"); device1.addContext("long", "-38.578082");
-		device2.addContext("lat", "-3.746466"); device1.addContext("long", "-38.578082");
-		device3.addContext("lat", "-3.746466"); device1.addContext("long", "-38.578082");
+		device1.addContext("latitude", "-3.746466"); device1.addContext("longitude", "-38.578082");
+		device2.addContext("latitude", "-3.746466"); device2.addContext("longitude", "-38.578082");
+		device3.addContext("latitude", "-3.746466"); device3.addContext("longitude", "-38.578082");
 		devices.add(device1); devices.add(device2); devices.add(device3);
 		
 		device1 = new Device(ip, "actuator", "airconditioning", "conferenceRoom");
@@ -111,10 +115,16 @@ public abstract class Utils {
 		device1.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
 		device2.addContext("temperature", String.valueOf(new Random().nextInt(10) + 16));
 		device3.addContext("state", new Random().nextInt(2) == 0 ? "off" : "on");
-		device1.addContext("lat", "-3.746579"); device1.addContext("long", "-38.578077");
-		device2.addContext("lat", "-3.746579"); device1.addContext("long", "-38.578077");
-		device3.addContext("lat", "-3.746579"); device1.addContext("long", "-38.578077");
+		device1.addContext("latitude", "-3.746579"); device1.addContext("longitude", "-38.578077");
+		device2.addContext("latitude", "-3.746579"); device2.addContext("longitude", "-38.578077");
+		device3.addContext("latitude", "-3.746579"); device3.addContext("longitude", "-38.578077");
 		devices.add(device1); devices.add(device2); devices.add(device3);
+		
+		/*device1 = new Device(ip, "sensor", "acc", "ap");
+		device1.addContext("network", "CLARO_2GDB49CF");
+		device1.addContext("latitude","-3.7544359");
+		device1.addContext("longitude", "-38.5815867");
+		devices.add(device1);*/
 		
 		System.out.println("\n========= ON CREATE DEVICES: \n\t"+ devices.toString() +"\n===========");
 		
